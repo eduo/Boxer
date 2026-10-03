@@ -14,12 +14,15 @@ extern NSString * const BXZipArchiveType;
 
 /// What Boxer believes a dropped zip archive to be.
 typedef NS_ENUM(NSInteger, BXArchiveKind) {
-    /// Neither of the below: offer to unzip it as-is into a gamebox.
+    /// None of the below: unzipped and imported as though it were a folder.
     BXArchiveKindGenericZip,
     /// A zipped-up gamebox. Not an import at all -- unarchive it and open it.
     BXArchiveKindGamebox,
     /// An eXoDOS game archive, identified by its .exo marker.
     BXArchiveKindExoDOSGame,
+    /// Several gameboxes and nothing else: a backup or a collection, not a game.
+    /// Boxer leaves it alone and asks the user to unzip it themselves.
+    BXArchiveKindGameboxCollection,
 };
 
 
@@ -45,6 +48,9 @@ typedef NS_ENUM(NSInteger, BXArchiveKind) {
 /// eXo's short name for the game: the archive's single root directory, and the
 /// key under which its configuration is filed in the metadata archive.
 @property (readonly, copy, nonatomic, nullable) NSString *shortName;
+
+/// How many gameboxes a gamebox collection holds. Zero for the other kinds.
+@property (readonly, nonatomic) NSUInteger gameboxCount;
 
 /// How much room the archive's contents will need once unpacked.
 @property (readonly, nonatomic) unsigned long long unpackedSize;

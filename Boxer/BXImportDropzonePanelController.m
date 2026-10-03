@@ -45,7 +45,7 @@
     openPanel.canChooseFiles = YES;
     openPanel.canChooseDirectories = YES;
     openPanel.treatsFilePackagesAsDirectories = NO;
-    openPanel.message = NSLocalizedString(@"Choose a DOS game folder, CD-ROM, disc image or zipped eXoDOS game to import:",
+    openPanel.message = NSLocalizedString(@"Choose a DOS game folder, CD-ROM, disc image or a ZIP of one DOS game to import:",
                                           @"Help text shown at the top of choose-a-folder-to-import panel.");
     
     openPanel.prompt = NSLocalizedString(@"Import",

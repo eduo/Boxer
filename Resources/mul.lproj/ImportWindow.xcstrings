@@ -722,31 +722,31 @@
       }
     },
     "454.title": {
-      "comment": "Class = \"NSTextFieldCell\"; title = \"Drop a CD-ROM, game folder, disc image or eXoDOS ZIP game\\nand Boxer will import it into a new gamebox. \"; ObjectID = \"454\";",
+      "comment": "Class = \"NSTextFieldCell\"; title = \"Drop a CD-ROM, game folder, disc image or a ZIP of one DOS game\\nand Boxer will try to turn it into a new gamebox.\"; ObjectID = \"454\";",
       "extractionState": "extracted_with_value",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "new",
-            "value": "Drop a CD-ROM, game folder, disc image or eXoDOS ZIP game\nand Boxer will import it into a new gamebox. "
+            "value": "Drop a CD-ROM, game folder, disc image or a ZIP of one DOS game\nand Boxer will try to turn it into a new gamebox."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Arrastre un CD-ROM, carpeta, imagen de disco o un ZIP de eXoDOS\ny Boxer lo importará en un nuevo gamebox. "
+            "value": "Arrastre un CD-ROM, carpeta, imagen de disco o un ZIP con un juego DOS\ny Boxer intentará convertirlo en un nuevo gamebox."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Déposez un CD-ROM, un dossier, une image disque ou un ZIP eXoDOS\net Boxer l’importera en tant que nouvelle gamebox. "
+            "value": "Déposez un CD-ROM, un dossier, une image disque ou le ZIP d’un jeu DOS\net Boxer essaiera d’en faire une nouvelle gamebox."
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Arraste o CD-ROM, pasta, imagem de disco ou um ZIP do eXoDOS\ne o Boxer importará para uma nova gamebox. "
+            "value": "Arraste o CD-ROM, pasta, imagem de disco ou um ZIP com um jogo DOS\ne o Boxer tentará transformá-lo em uma nova gamebox."
           }
         }
       }

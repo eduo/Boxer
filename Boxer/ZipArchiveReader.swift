@@ -294,6 +294,90 @@ final class ZipArchiveReader {
 }
 
 
+// MARK: - Unpacking a zip to import it as a folder
+
+/// Unpacks a zip that is not in any format Boxer knows how to convert, so the
+/// import can carry on as though the user had dropped a folder instead.
+///
+/// The folder handed back is the one the import should treat as the game:
+///
+/// - a zip holding a single folder and nothing else unpacks to that folder, the
+///   way most people zip a game up;
+/// - a zip with anything at all at its root unpacks into a folder named after
+///   the zip, so loose files still arrive as one game with a sensible name.
+///
+/// The Finder's `__MACOSX` resource-fork shadows and `.DS_Store` files are left
+/// out, both when deciding which case this is and when unpacking. So is any
+/// member whose path would climb out of the destination.
+///
+/// Everything goes into a fresh folder of its own under the temporary
+/// directory, which is the parent of the folder returned; the caller removes
+/// that once the import no longer needs the source.
+@objc(BXZipFolderExtractor)
+final class ZipFolderExtractor: NSObject {
+    @objc(extractArchiveAtURL:isCancelled:error:)
+    static func extractArchive(at url: URL, isCancelled: () -> Bool) throws -> URL {
+        let archive = try ZipArchiveReader(url: url)
+
+        var members: [(entry: BXZipEntry, components: [String])] = []
+        for entry in archive.directory.entries {
+            let components = entry.path.split(separator: "/").map(String.init)
+            guard let first = components.first,
+                  first != "__MACOSX",
+                  components.last != ".DS_Store",
+                  !entry.path.hasPrefix("/"),
+                  !components.contains(".."),
+                  !components.contains(".") else { continue }
+            members.append((entry, components))
+        }
+        guard !members.isEmpty else {
+            throw CocoaError(.fileReadCorruptFile, userInfo: [
+                NSURLErrorKey: url,
+                NSLocalizedDescriptionKey: String(format: NSLocalizedString("“%@” is empty, so there is nothing to import.",
+                                                                            comment: "Error when a dropped zip holds no files. %@ is its filename."),
+                                                  url.lastPathComponent),
+            ])
+        }
+
+        // One folder at the root, and every file inside it.
+        let roots = Set(members.map { $0.components[0] })
+        let isSingleFolder = roots.count == 1
+            && members.allSatisfy { $0.entry.isDirectory || $0.components.count > 1 }
+
+        let staging = FileManager.default.temporaryDirectory
+            .appendingPathComponent("Boxer Imports", isDirectory: true)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let gameFolder = isSingleFolder
+            ? staging.appendingPathComponent(roots.first!, isDirectory: true)
+            : staging.appendingPathComponent(url.deletingPathExtension().lastPathComponent, isDirectory: true)
+        let base = isSingleFolder ? staging : gameFolder
+
+        let manager = FileManager.default
+        do {
+            try manager.createDirectory(at: gameFolder, withIntermediateDirectories: true)
+            for member in members {
+                if isCancelled() { throw CocoaError(.userCancelled) }
+                let destination = member.components.reduce(base) { $0.appendingPathComponent($1) }
+                if member.entry.isDirectory {
+                    try manager.createDirectory(at: destination, withIntermediateDirectories: true)
+                } else {
+                    var stopped = false
+                    try archive.extract(member.entry, to: destination) { _ in
+                        if isCancelled() { stopped = true; return false }
+                        return true
+                    }
+                    if stopped { throw CocoaError(.userCancelled) }
+                }
+            }
+        } catch {
+            try? manager.removeItem(at: staging)
+            throw error
+        }
+        return gameFolder
+    }
+}
+
+
 // MARK: - Checksums
 
 /// The zip format's CRC-32, computed a chunk at a time.

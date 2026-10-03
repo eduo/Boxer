@@ -12,9 +12,10 @@
 >   `DOSBox-Staging` submodule is pinned to a commit on that branch. Where
 >   upstream now provides extension points (`RenderBackend`, `MidiDevice`),
 >   Boxer builds on them instead of patching DOSBox directly.
-> - **Import eXoDOS collections.** Games packed as eXoDOS `.zip` archives can
->   be imported as Boxer gameboxes. The importer is written in Swift and
->   SwiftUI.
+> - **Import zipped games.** A `.zip` holding one DOS game can be dropped on
+>   the importer. eXoDOS archives are converted into Boxer gameboxes; a zipped
+>   gamebox is simply unzipped; any other zip is unpacked and imported like a
+>   dropped folder. The importer is written in Swift and SwiftUI.
 >
 > The minimum macOS version rises from 10.14.4 to **12.0**, the same as
 > DOSBox Staging 0.83. This is a work in

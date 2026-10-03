@@ -136,7 +136,7 @@
 "Cancelling…" = "Cancelling…";
 
 /* Help text shown at the top of choose-a-folder-to-import panel. */
-"Choose a DOS game folder, CD-ROM, disc image or zipped eXoDOS game to import:" = "Choose a DOS game folder, CD-ROM, disc image or zipped eXoDOS game to import:";
+"Choose a DOS game folder, CD-ROM, disc image or a ZIP of one DOS game to import:" = "Escolha uma pasta de jogo DOS, CD-ROM, imagem de disco ou um ZIP com um jogo DOS para importar:";
 
 /* Help text shown at the top of mount-a-new-drive panel. */
 "Choose a folder, CD-ROM or disc image to add as a DOS drive." = "Choose a folder, CD-ROM or disc image to add as a DOS drive.";
@@ -816,3 +816,22 @@
 
 /* Localized description for when a requested URL cannot be opened from within DOS. */
 "URL not reachable in DOS" = "URL not reachable in DOS";
+
+/* Error when a dropped zip holds no files. %@ is its filename. */
+"“%@” is empty, so there is nothing to import." = "“%@” está vazio, então não há nada para importar.";
+
+/* Tooltip on the Unzip As-Is button in the archive import panel. */
+"Import the zip’s contents as an ordinary game folder, without converting it." = "Importa o conteúdo do ZIP como uma pasta de jogo comum, sem convertê-lo.";
+
+/* Summary shown when a dropped archive holds several gameboxes and nothing else. %lu is how many. */
+"An archive of %lu gameboxes." = "Um arquivo com %lu gameboxes.";
+
+/* Error when unzipping a zipped gamebox fails. %@ is the zip's filename. */
+"The gamebox in “%@” could not be unzipped." = "Não foi possível descompactar a gamebox em “%@”.";
+
+/* Title of the warning when a dropped zip holds several gameboxes. %@ is the zip's filename. */
+"“%@” seems to be an archive of Boxer gameboxes." = "“%@” parece ser um arquivo de gameboxes do Boxer.";
+
+/* Explanation under the warning when a dropped zip holds several gameboxes. %lu is how many. */
+"It holds %lu gameboxes and nothing else. Boxer imports one game at a time, so unzip it in the Finder and open the gameboxes from there." = "Ele contém %lu gameboxes e nada mais. O Boxer importa um jogo por vez, então descompacte-o no Finder e abra as gameboxes a partir de lá.";
+

@@ -132,6 +132,15 @@ typedef NS_ENUM(NSInteger, BXSourceFileImportType) {
 /// rendered as an icon; pass nil and a bootleg cover is generated instead.
 - (void) adoptConvertedGameboxAtURL: (NSURL *)URL coverArt: (nullable NSImage *)coverArt;
 
+/// Unpacks a dropped zip into a temporary folder and imports that folder the
+/// ordinary way, as though the user had dropped it instead. This is what any
+/// zip Boxer cannot convert gets, and what "Unzip As-Is" asks for on one it can.
+///
+/// A zip holding a single folder imports that folder; one with anything at its
+/// root imports a folder named after the zip. The unpacked copy is removed once
+/// the import finishes or is abandoned.
+- (void) importArchiveAsFolderAtURL: (NSURL *)URL;
+
 /// How far through the current stage we have progressed.
 ///
 /// Only relevant during the \c BXImportSessionLoadingSourcePath and \c BXImportSessionImportingSourceFiles stages.

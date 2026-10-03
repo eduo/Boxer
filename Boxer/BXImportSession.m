@@ -60,6 +60,25 @@
 #import "ADBUserNotificationDispatcher.h"
 
 #import "Boxer-Swift.h"
+#include <sys/xattr.h>
+
+
+//A folder's custom icon is two things: the image, in an "Icon\r" file inside
+//it, and a flag in the folder's own Finder info saying to look for that file.
+//A zip made by the Finder carries the first but not the second, so a gamebox
+//unzipped from one keeps its cover art and shows the generic icon anyway.
+//This puts the flag back whenever the file is there.
+static void _BXRestoreCustomIconFlag(NSURL *folderURL)
+{
+    NSURL *iconURL = [folderURL URLByAppendingPathComponent: @"Icon\r"];
+    if (![iconURL checkResourceIsReachableAndReturnError: NULL]) return;
+
+    const char *path = folderURL.fileSystemRepresentation;
+    uint8_t finderInfo[32] = {0};
+    getxattr(path, XATTR_FINDERINFO_NAME, finderInfo, sizeof(finderInfo), 0, 0);
+    finderInfo[8] |= 0x04; //kHasCustomIcon, the high byte of the big-endian flags at offset 8
+    setxattr(path, XATTR_FINDERINFO_NAME, finderInfo, sizeof(finderInfo), 0, 0);
+}
 
 
 #pragma mark -
@@ -74,6 +93,10 @@
 @property (readwrite, assign, nonatomic) BXSourceFileImportType sourceFileImportType;
 @property (readwrite, retain, nonatomic) BXArchiveClassification *archiveClassification;
 @property (readwrite, retain, nonatomic) NSURL *eXoDOSMetadataURL;
+
+//The temporary folder a dropped zip was unpacked into, when it was imported as
+//a folder rather than converted. Removed once the import no longer needs it.
+@property (retain, nonatomic) NSURL *unpackedArchiveURL;
 
 //Only defined for internal use
 @property (copy, nonatomic) NSURL *rootDriveURL;
@@ -123,6 +146,7 @@
     self.configurationToImport = nil;
     self.archiveClassification = nil;
     self.eXoDOSMetadataURL = nil;
+    self.unpackedArchiveURL = nil;
     
 	[super dealloc];
 }
@@ -157,6 +181,13 @@
         return [self _classifyArchiveAtURL: absoluteURL error: outError];
     }
 
+	return [self _scanSourceAtURL: absoluteURL];
+}
+
+//Starts the ordinary import of a folder, volume or disc image: everything that
+//is not a zip, and a zip once it has been unpacked.
+- (BOOL) _scanSourceAtURL: (NSURL *)absoluteURL
+{
 	NSURL *preferredURL = [self.class preferredSourceURLForURL: absoluteURL];
 	if (!preferredURL)
     {
@@ -203,6 +234,31 @@
         return NO;
     }
 
+    switch (classification.kind)
+    {
+        case BXArchiveKindExoDOSGame:
+            break;
+
+        //A zipped gamebox is not an import at all: it only needs unzipping.
+        case BXArchiveKindGamebox:
+            [self _unpackGameboxNamed: classification.shortName fromArchiveAtURL: URL];
+            return YES;
+
+        //Boxer imports one game at a time, and a collection of gameboxes is not
+        //a game. Unzipping it on the user's behalf would scatter gameboxes
+        //wherever we chose, so it is left alone and they are told why.
+        case BXArchiveKindGameboxCollection:
+            [self _refuseGameboxCollection: classification];
+            return YES;
+
+        //eXoDOS is the only format Boxer converts. Anything else is unpacked and
+        //imported exactly as though the user had dropped the folder inside it.
+        case BXArchiveKindGenericZip:
+        default:
+            [self importArchiveAsFolderAtURL: URL];
+            return YES;
+    }
+
     self.archiveClassification = classification;
     self.eXoDOSMetadataURL = (classification.kind == BXArchiveKindExoDOSGame)
         ? [BXImportClassifier metadataArchiveURLForGameArchiveAtURL: URL]
@@ -214,10 +270,242 @@
     return YES;
 }
 
-- (void) adoptConvertedGameboxAtURL: (NSURL *)URL coverArt: (NSImage *)coverArt
+- (void) importArchiveAsFolderAtURL: (NSURL *)URL
+{
+    self.archiveClassification = nil;
+    self.eXoDOSMetadataURL = nil;
+    self.sourceURL = URL;
+    self.fileURL = URL;
+    self.importStage = BXImportSessionLoadingSource;
+
+    [self _unpackOnScanQueue: ^NSURL *(NSOperation *operation, NSError **outError) {
+        return [BXZipFolderExtractor extractArchiveAtURL: URL
+                                             isCancelled: ^BOOL{ return operation.isCancelled; }
+                                                   error: outError];
+    } completion: ^(NSURL *folderURL, NSError *error) {
+        [self _archiveUnpackedToURL: folderURL error: error];
+    }];
+}
+
+//Runs some unpacking on the scan queue, where the panel's Cancel button can
+//reach it, and hands the result back on the main thread.
+//
+//The result travels back through the completion block rather than the
+//execution block, because only the completion block is guaranteed to run: an
+//operation cancelled before it starts never executes at all, and the panel
+//would be left showing the spinner. A nil URL with a nil error means that.
+- (void) _unpackOnScanQueue: (NSURL * (^)(NSOperation *operation, NSError **outError))work
+                 completion: (void (^)(NSURL *resultURL, NSError *error))completion
+{
+    NSBlockOperation *unpack = [[NSBlockOperation alloc] init];
+    __block NSBlockOperation *operation = unpack;
+    __block NSURL *resultURL = nil;
+    __block NSError *unpackError = nil;
+
+    [unpack addExecutionBlock: ^{
+        NSError *error = nil;
+        resultURL = [work(operation, &error) retain];
+        unpackError = [error retain];
+    }];
+    unpack.completionBlock = ^{
+        dispatch_async(dispatch_get_main_queue(), ^{
+            completion(resultURL, unpackError);
+            [resultURL release];
+            [unpackError release];
+        });
+    };
+
+    [self.scanQueue addOperation: unpack];
+    [unpack release];
+}
+
+//Unzips a zipped gamebox straight into the games folder, and finishes the
+//import with it: there is nothing to import, only something to unpack.
+//
+//This goes through ditto rather than our own reader because a gamebox's cover
+//art is a Finder custom icon, which a zip made by the Finder keeps as
+//AppleDouble files under __MACOSX; ditto puts it back, our reader skips it.
+//It unpacks into a hidden folder beside its destination, so the final move is
+//a rename on the same volume and a half-unpacked gamebox is never visible.
+- (void) _unpackGameboxNamed: (NSString *)gameboxName fromArchiveAtURL: (NSURL *)URL
+{
+    self.archiveClassification = nil;
+    self.eXoDOSMetadataURL = nil;
+    self.sourceURL = URL;
+    self.fileURL = URL;
+    self.importStage = BXImportSessionLoadingSource;
+
+    NSURL *gamesFolder = [(BXAppController *)[NSApp delegate] gamesFolderURL];
+    if (![gamesFolder checkResourceIsReachableAndReturnError: NULL])
+        gamesFolder = [(BXAppController *)[NSApp delegate] fallbackGamesFolderURL];
+
+    [self _unpackOnScanQueue: ^NSURL *(NSOperation *operation, NSError **outError) {
+        NSFileManager *manager = [[[NSFileManager alloc] init] autorelease];
+        NSString *stagingName = [NSString stringWithFormat: @".Boxer unpacking %@", [NSUUID UUID].UUIDString];
+        NSURL *stagingURL = [gamesFolder URLByAppendingPathComponent: stagingName isDirectory: YES];
+        if (![manager createDirectoryAtURL: stagingURL withIntermediateDirectories: YES attributes: nil error: outError])
+            return nil;
+
+        NSTask *ditto = [[[NSTask alloc] init] autorelease];
+        ditto.executableURL = [NSURL fileURLWithPath: @"/usr/bin/ditto"];
+        ditto.arguments = @[@"-x", @"-k", URL.path, stagingURL.path];
+        ditto.standardOutput = [NSFileHandle fileHandleWithNullDevice];
+        ditto.standardError = [NSFileHandle fileHandleWithNullDevice];
+
+        NSURL *gameboxURL = nil;
+        if ([ditto launchAndReturnError: outError])
+        {
+            while (ditto.isRunning)
+            {
+                if (operation.isCancelled) [ditto terminate];
+                [NSThread sleepForTimeInterval: 0.05];
+            }
+
+            if (operation.isCancelled)
+            {
+                if (outError) *outError = [NSError errorWithDomain: NSCocoaErrorDomain code: NSUserCancelledError userInfo: nil];
+            }
+            else if (ditto.terminationStatus != 0)
+            {
+                if (outError) *outError = [NSError errorWithDomain: NSCocoaErrorDomain
+                                                              code: NSFileReadCorruptFileError
+                                                          userInfo: @{
+                    NSURLErrorKey: URL,
+                    NSLocalizedDescriptionKey: [NSString stringWithFormat:
+                        NSLocalizedString(@"The gamebox in “%@” could not be unzipped.",
+                                          @"Error when unzipping a zipped gamebox fails. %@ is the zip's filename."),
+                        URL.lastPathComponent],
+                }];
+            }
+            else
+            {
+                NSURL *unpackedURL = [stagingURL URLByAppendingPathComponent: gameboxName];
+                gameboxURL = [manager moveItemAtURL: unpackedURL
+                                              toURL: [gamesFolder URLByAppendingPathComponent: gameboxName]
+                                     filenameFormat: ADBDefaultIncrementedFilenameFormat
+                                              error: outError];
+                if (gameboxURL) _BXRestoreCustomIconFlag(gameboxURL);
+            }
+        }
+
+        [manager removeItemAtURL: stagingURL error: NULL];
+        return gameboxURL;
+    } completion: ^(NSURL *gameboxURL, NSError *error) {
+        [self _gameboxUnpackedToURL: gameboxURL error: error];
+    }];
+}
+
+- (void) _gameboxUnpackedToURL: (NSURL *)gameboxURL error: (NSError *)error
+{
+    //Cancelled too late to stop the unzip: the user asked for nothing, so they
+    //get nothing, rather than a gamebox appearing behind their back.
+    if (gameboxURL && self.importStage != BXImportSessionLoadingSource)
+    {
+        [[NSFileManager defaultManager] removeItemAtURL: gameboxURL error: NULL];
+        return;
+    }
+
+    if (gameboxURL && [self _adoptGameboxAtURL: gameboxURL])
+    {
+        //A gamebox brings its own cover art, which the session reads from it.
+        self.importStage = BXImportSessionFinished;
+        [[NSDocumentController sharedDocumentController] noteNewRecentDocument: self];
+        return;
+    }
+
+    self.sourceURL = nil;
+    self.fileURL = nil;
+    self.importStage = BXImportSessionWaitingForSource;
+
+    if (error && !error.isUserCancelledError)
+    {
+        [self presentError: error
+            modalForWindow: self.windowForSheet
+                  delegate: nil
+        didPresentSelector: NULL
+               contextInfo: NULL];
+    }
+}
+
+- (void) _refuseGameboxCollection: (BXArchiveClassification *)classification
+{
+    self.archiveClassification = nil;
+    self.eXoDOSMetadataURL = nil;
+    self.sourceURL = nil;
+    self.fileURL = nil;
+    self.importStage = BXImportSessionWaitingForSource;
+
+    NSString *description = [NSString stringWithFormat:
+        NSLocalizedString(@"“%@” seems to be an archive of Boxer gameboxes.",
+                          @"Title of the warning when a dropped zip holds several gameboxes. %@ is the zip's filename."),
+        classification.sourceURL.lastPathComponent];
+    NSString *suggestion = [NSString stringWithFormat:
+        NSLocalizedString(@"It holds %lu gameboxes and nothing else. Boxer imports one game at a time, so unzip it in the Finder and open the gameboxes from there.",
+                          @"Explanation under the warning when a dropped zip holds several gameboxes. %lu is how many."),
+        (unsigned long)classification.gameboxCount];
+    NSError *warning = [NSError errorWithDomain: NSCocoaErrorDomain
+                                           code: NSFileReadUnsupportedSchemeError
+                                       userInfo: @{
+        NSLocalizedDescriptionKey: description,
+        NSLocalizedRecoverySuggestionErrorKey: suggestion,
+        NSURLErrorKey: classification.sourceURL,
+    }];
+
+    //This is reached while the document is still being opened, before it has
+    //a window to hang a sheet from, so wait until it does.
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [self presentError: warning
+            modalForWindow: self.windowForSheet
+                  delegate: nil
+        didPresentSelector: NULL
+               contextInfo: NULL];
+    });
+}
+
+- (void) _archiveUnpackedToURL: (NSURL *)folderURL error: (NSError *)error
+{
+    if (folderURL)
+        self.unpackedArchiveURL = folderURL.URLByDeletingLastPathComponent;
+
+    //Cancelled after it finished unpacking, or before it started.
+    if (folderURL && self.importStage != BXImportSessionLoadingSource)
+    {
+        [self _discardUnpackedArchive];
+        return;
+    }
+
+    if (!folderURL || ![self _scanSourceAtURL: folderURL])
+    {
+        [self _discardUnpackedArchive];
+        self.sourceURL = nil;
+        self.fileURL = nil;
+        self.importStage = BXImportSessionWaitingForSource;
+
+        if (error && !error.isUserCancelledError)
+        {
+            [self presentError: error
+                modalForWindow: self.windowForSheet
+                      delegate: nil
+            didPresentSelector: NULL
+                   contextInfo: NULL];
+        }
+    }
+}
+
+- (void) _discardUnpackedArchive
+{
+    if (self.unpackedArchiveURL)
+    {
+        [[NSFileManager defaultManager] removeItemAtURL: self.unpackedArchiveURL error: NULL];
+        self.unpackedArchiveURL = nil;
+    }
+}
+
+//Makes a finished gamebox this session's own.
+- (BOOL) _adoptGameboxAtURL: (NSURL *)URL
 {
     BXGamebox *gamebox = [BXGamebox bundleWithURL: URL];
-    if (!gamebox) return;
+    if (!gamebox) return NO;
 
     self.gamebox = gamebox;
     self.fileURL = URL;
@@ -225,6 +513,13 @@
     NSURL *rootDriveURL = [gamebox.resourceURL URLByAppendingPathComponent: @"C.harddisk"];
     if ([rootDriveURL checkResourceIsReachableAndReturnError: NULL])
         self.rootDriveURL = rootDriveURL;
+
+    return YES;
+}
+
+- (void) adoptConvertedGameboxAtURL: (NSURL *)URL coverArt: (NSImage *)coverArt
+{
+    if (![self _adoptGameboxAtURL: URL]) return;
 
     //The media pack has a box front for 99% of the pack's games; the rest get
     //the same generated cover any other import would fall back to.
@@ -282,6 +577,7 @@
         self.installerURLs = nil;
         self.fileURL = nil;
 		self.importStage = BXImportSessionWaitingForSource;
+        [self _discardUnpackedArchive];
 		
         //Eject any disk that was mounted as a result of the scan
         if (scan.didMountVolume)
@@ -744,6 +1040,7 @@
 		_didMountSourceVolume = NO;
 	}
 	
+	[self _discardUnpackedArchive];
 	self.sourceURL = nil;
 	self.fileURL = nil;
 	self.importStage = BXImportSessionWaitingForSource;
@@ -1340,7 +1637,9 @@
 	//so they should be done already, but let's wait anyway.
 	[self.importQueue waitUntilAllOperationsAreFinished];
 	
-	//That's all folks!
+	//That's all folks! The gamebox now holds its own copy of anything we
+	//unpacked from a zip, so the unpacked copy can go.
+	[self _discardUnpackedArchive];
 	self.importStage = BXImportSessionFinished;
 	
 	//Add to the recent documents list
@@ -1673,6 +1972,8 @@
 		[workspace unmountAndEjectDeviceAtURL: self.sourceURL error: NULL];
 		_didMountSourceVolume = NO;
 	}
+
+	[self _discardUnpackedArchive];
 }
 
 @end

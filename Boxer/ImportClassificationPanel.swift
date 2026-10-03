@@ -201,12 +201,11 @@ struct ImportClassificationView: View {
                     .keyboardShortcut(.defaultAction)
             case .confirming, .failed:
                 // Unzipping the archive as-is is the escape hatch for when the
-                // clever path gets something wrong. It is not built yet, and a
-                // button that silently does nothing is worse than one that says
-                // it cannot: see EXODOS-IMPORT.md, stage 7.
+                // clever path gets something wrong: the zip is imported the way
+                // any zip Boxer cannot convert is, as though its folder had been
+                // dropped instead.
                 Button("Unzip As-Is", action: onUnzipAsIs)
-                    .disabled(true)
-                    .help("Not available yet — see the import notes.")
+                    .help("Import the zip’s contents as an ordinary game folder, without converting it.")
                 Button(model.phase == .confirming ? "Continue" : "Try Again", action: onContinue)
                     .keyboardShortcut(.defaultAction)
                     .disabled(!model.summary.canConvert)
@@ -263,6 +262,9 @@ final class ImportClassificationPanelController: NSObject {
     /// Called when the user abandons the import altogether.
     @objc var onCancel: (() -> Void)?
 
+    /// Called when the user would rather import the zip as a plain folder.
+    @objc var onUnzipAsIs: (() -> Void)?
+
     private let model: ImportWizardModel
     private let gameArchiveURL: URL
     private let metadataArchiveURL: URL?
@@ -276,7 +278,7 @@ final class ImportClassificationPanelController: NSObject {
         let root = ImportClassificationView(
             model: model,
             onContinue: { [weak self] in self?.advance() },
-            onUnzipAsIs: {},
+            onUnzipAsIs: { [weak self] in self?.onUnzipAsIs?() },
             onCancel: { [weak self] in self?.cancel() })
         let view = NSHostingView(rootView: root)
 

@@ -138,7 +138,7 @@ na vlastních osách.";
 "Cancelling…" = "Ruším...";
 
 /* Help text shown at the top of choose-a-folder-to-import panel. */
-"Choose a DOS game folder, CD-ROM, disc image or zipped eXoDOS game to import:" = "Určete, jakou složku s DOSovou hrou, disk CD, obraz disku nebo hru eXoDOS v ZIPu importovat:";
+"Choose a DOS game folder, CD-ROM, disc image or a ZIP of one DOS game to import:" = "Určete, jakou složku s DOSovou hrou, disk CD, obraz disku nebo ZIP s jednou DOSovou hrou importovat:";
 
 /* Help text shown at the top of mount-a-new-drive panel. */
 "Choose a folder, CD-ROM or disc image to add as a DOS drive." = "Určete, jakou složku, disk CD nebo obraz disku přidat jako DOSový disk.";
@@ -824,3 +824,22 @@ Přetáhněte sem prosím náhradní ROM.";
 
 /* Localized description for when a requested URL cannot be opened from within DOS. */
 //"URL not reachable in DOS" = "URL not reachable in DOS";
+
+/* Error when a dropped zip holds no files. %@ is its filename. */
+"“%@” is empty, so there is nothing to import." = "“%@” je prázdný, takže není co importovat.";
+
+/* Tooltip on the Unzip As-Is button in the archive import panel. */
+"Import the zip’s contents as an ordinary game folder, without converting it." = "Importovat obsah ZIPu jako běžnou složku s hrou, bez převodu.";
+
+/* Summary shown when a dropped archive holds several gameboxes and nothing else. %lu is how many. */
+"An archive of %lu gameboxes." = "Archiv s %lu herními balíčky.";
+
+/* Error when unzipping a zipped gamebox fails. %@ is the zip's filename. */
+"The gamebox in “%@” could not be unzipped." = "Herní balíček v “%@” se nepodařilo rozbalit.";
+
+/* Title of the warning when a dropped zip holds several gameboxes. %@ is the zip's filename. */
+"“%@” seems to be an archive of Boxer gameboxes." = "“%@” je nejspíš archiv herních balíčků Boxeru.";
+
+/* Explanation under the warning when a dropped zip holds several gameboxes. %lu is how many. */
+"It holds %lu gameboxes and nothing else. Boxer imports one game at a time, so unzip it in the Finder and open the gameboxes from there." = "Archiv obsahuje pouze herní balíčky (celkem %lu). Boxer importuje vždy jen jednu hru, proto ho rozbalte ve Finderu a herní balíčky otevřete odtud.";
+

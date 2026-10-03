@@ -27,6 +27,7 @@ static NSString * const BXeXoDOSMarkerExtension = @"exo";
 @property (readwrite, copy, nonatomic, nullable) NSString *gameTitle;
 @property (readwrite, copy, nonatomic, nullable) NSString *shortName;
 @property (readwrite, nonatomic) unsigned long long unpackedSize;
+@property (readwrite, nonatomic) NSUInteger gameboxCount;
 @property (readwrite, copy, nonatomic, nullable) NSString *rejectionReason;
 @end
 
@@ -45,6 +46,11 @@ static NSString * const BXeXoDOSMarkerExtension = @"exo";
             return [NSString stringWithFormat: NSLocalizedString(@"“%@”, a zipped gamebox.",
                 @"Summary shown when a dropped archive contains an existing gamebox. %@ is the gamebox's name."),
                     self.gameTitle];
+
+        case BXArchiveKindGameboxCollection:
+            return [NSString stringWithFormat: NSLocalizedString(@"An archive of %lu gameboxes.",
+                @"Summary shown when a dropped archive holds several gameboxes and nothing else. %lu is how many."),
+                    (unsigned long)self.gameboxCount];
 
         case BXArchiveKindGenericZip:
         default:
@@ -82,9 +88,23 @@ static NSString * const BXeXoDOSMarkerExtension = @"exo";
     classification.sourceURL = URL;
     classification.unpackedSize = directory.totalUncompressedSize;
 
-    // Every shape we recognise has exactly one root-level directory. Anything
-    // else is a loose bag of files, which is the generic case by definition.
-    NSSet *roots = directory.rootLevelNames;
+    // The Finder's resource-fork shadows and folder settings say nothing
+    // about what the archive holds, so they do not count as items in it.
+    NSMutableSet *roots = [directory.rootLevelNames mutableCopy];
+    [roots removeObject: @"__MACOSX"];
+    [roots removeObject: @".DS_Store"];
+
+    // Several gameboxes and nothing else is somebody's collection or backup.
+    // Each is a folder, so each has entries beneath it.
+    if (roots.count > 1 && [self _rootsAreAllGameboxes: roots inDirectory: directory])
+    {
+        classification.kind = BXArchiveKindGameboxCollection;
+        classification.gameboxCount = roots.count;
+        return classification;
+    }
+
+    // Every other shape we recognise has exactly one root-level directory.
+    // Anything else is a loose bag of files, which is the generic case.
     if (roots.count != 1)
     {
         classification.kind = BXArchiveKindGenericZip;
@@ -141,6 +161,24 @@ static NSString * const BXeXoDOSMarkerExtension = @"exo";
         : NSLocalizedString(@"The archive contains no eXoDOS marker file.",
             @"Explanation shown when an archive has no .exo file.");
     return classification;
+}
+
++ (BOOL) _rootsAreAllGameboxes: (NSSet<NSString *> *)roots inDirectory: (BXZipCentralDirectory *)directory
+{
+    for (NSString *root in roots)
+    {
+        if ([root.pathExtension caseInsensitiveCompare: @"boxer"] != NSOrderedSame)
+            return NO;
+
+        NSString *prefix = [root stringByAppendingString: @"/"].lowercaseString;
+        BOOL isFolder = NO;
+        for (NSString *path in directory.paths)
+        {
+            if ([path.lowercaseString hasPrefix: prefix]) { isFolder = YES; break; }
+        }
+        if (!isFolder) return NO;
+    }
+    return YES;
 }
 
 + (NSArray<NSString *> *) _markerPathsInDirectory: (BXZipCentralDirectory *)directory

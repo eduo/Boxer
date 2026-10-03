@@ -135,6 +135,10 @@
         controller.onCancel = ^{
             [weakSelf.document cancelSourceSelection];
         };
+        NSURL *archiveURL = classification.sourceURL;
+        controller.onUnzipAsIs = ^{
+            [weakSelf.document importArchiveAsFolderAtURL: archiveURL];
+        };
         //The conversion writes the whole gamebox itself, so what comes back is
         //a finished one: the session adopts it and ends on the same panel every
         //other import ends on.
