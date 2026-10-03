@@ -110,20 +110,20 @@ struct ImportClassificationView: View {
                 .font(.system(size: 17, weight: .semibold))
                 .fixedSize(horizontal: false, vertical: true)
             Text(model.summary.detail)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
     }
 
     private var details: some View {
         VStack(alignment: .leading, spacing: 10) {
-            BackportLabeledContent("Unpacked size", value: model.summary.formattedSize)
-            BackportLabeledContent("eXoDOS pack") {
+            DetailRow("Unpacked size", value: model.summary.formattedSize)
+            DetailRow("eXoDOS pack") {
                 Label(model.summary.packFound ? "Found alongside the game" : "Not found",
                       systemImage: model.summary.packFound ? "checkmark.circle" : "exclamationmark.triangle")
-                    .foregroundColor(model.summary.packFound ? Color.secondary : Color.orange)
+                    .foregroundStyle(model.summary.packFound ? Color.secondary : Color.orange)
             }
-            BackportLabeledContent("Import into") {
+            DetailRow("Import into") {
                 DestinationPathControl(url: $model.destination, recents: model.recentDestinations)
                     .frame(height: 22)
                     .frame(maxWidth: 260, alignment: .leading)
@@ -131,7 +131,7 @@ struct ImportClassificationView: View {
 
             if let advice = model.summary.packAdvice {
                 Text(advice)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.top, 4)
             }
@@ -146,7 +146,7 @@ struct ImportClassificationView: View {
             }
             Text(model.currentItem.isEmpty ? " " : model.currentItem)
                 .font(.callout)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
                 .truncationMode(.middle)
                 .lineLimit(1)
         }
@@ -163,7 +163,11 @@ struct ImportClassificationView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 6) {
                     ForEach(Array(model.warnings.enumerated()), id: \.offset) { _, warning in
-                        SelectableWarningText(warning: warning)
+                        Text("• " + warning)
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .textSelection(.enabled)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -175,18 +179,18 @@ struct ImportClassificationView: View {
     private func failure(_ message: String) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Label("The game could not be converted.", systemImage: "exclamationmark.triangle")
-                .foregroundColor(Color.orange)
+                .foregroundStyle(Color.orange)
             Text(message)
                 .font(.callout)
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
     }
 
     private var buttons: some View {
         HStack {
-            Button("Cancel", action: onCancel)
-                .keyboardShortcut(.escape)
+            Button("Cancel", role: .cancel, action: onCancel)
+                .keyboardShortcut(.cancelAction)
             Spacer()
 
             switch model.phase {
@@ -194,7 +198,7 @@ struct ImportClassificationView: View {
                 EmptyView()
             case .converted:
                 Button("Done", action: onContinue)
-                    .keyboardShortcut(.return)
+                    .keyboardShortcut(.defaultAction)
             case .confirming, .failed:
                 // Unzipping the archive as-is is the escape hatch for when the
                 // clever path gets something wrong. It is not built yet, and a
@@ -204,7 +208,7 @@ struct ImportClassificationView: View {
                     .disabled(true)
                     .help("Not available yet — see the import notes.")
                 Button(model.phase == .confirming ? "Continue" : "Try Again", action: onContinue)
-                    .keyboardShortcut(.return)
+                    .keyboardShortcut(.defaultAction)
                     .disabled(!model.summary.canConvert)
             }
         }
@@ -212,35 +216,11 @@ struct ImportClassificationView: View {
 }
 
 
-/// Selectable text is macOS 13+. On 12 the warnings just show as labels.
-private struct SelectableWarningText: View {
-    let warning: String
-
-    var body: some View {
-        Group {
-            if #available(macOS 13, *) {
-                Text("• " + warning)
-                    .font(.callout)
-                    .foregroundColor(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .textSelection(.enabled)
-            } else {
-                Text("• " + warning)
-                    .font(.callout)
-                    .foregroundColor(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-    }
-}
-
-
-/// LabeledContent is macOS 13+. This renders as LabeledContent where
-/// available and falls back to an HStack label/value row on macOS 12,
-/// so the panel builds and runs with a macOS 12 deployment target.
-/// (The `if #available` needs the `Group` wrapper so both branches share
-/// one opaque `some View` type.)
-private struct BackportLabeledContent<Content: View>: View {
+/// One label/value line in the details block. `LabeledContent` would do this,
+/// but it needs macOS 13 and the floor is 12.0; outside a `Form` it is only an
+/// `HStack` anyway. The layout is dtseto's macOS 12 fallback from PR #2, used on
+/// every version so the panel looks the same everywhere.
+private struct DetailRow<Content: View>: View {
     private let title: String
     private let content: Content
 
@@ -249,29 +229,17 @@ private struct BackportLabeledContent<Content: View>: View {
         self.content = content()
     }
 
-    var body: some View {
-        Group {
-            if #available(macOS 13, *) {
-                LabeledContent(title) {
-                    content
-                }
-            } else {
-                HStack(alignment: .firstTextBaseline, spacing: 12) {
-                    Text(title)
-                        .foregroundColor(.secondary)
-                        .frame(width: 110, alignment: .trailing)
-                    content
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-            }
-        }
+    init(_ title: String, value: String) where Content == Text {
+        self.init(title) { Text(value) }
     }
-}
 
-extension BackportLabeledContent where Content == Text {
-    init(_ title: String, value: String) {
-        self.init(title) {
-            Text(value)
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            Text(title)
+                .foregroundStyle(.secondary)
+                .frame(width: 110, alignment: .trailing)
+            content
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 }

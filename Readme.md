@@ -16,8 +16,8 @@
 >   be imported as Boxer gameboxes. The importer is written in Swift and
 >   SwiftUI.
 >
-> The minimum macOS version rises from 10.14.4 to **13.0** (DOSBox Staging 0.83
-> needs 12.0; the eXoDOS importer uses macOS 13 APIs). This is a work in
+> The minimum macOS version rises from 10.14.4 to **12.0**, the same as
+> DOSBox Staging 0.83. This is a work in
 > progress and is not affiliated with or endorsed by the Boxer or DOSBox
 > Staging maintainers. The rest of this README is the upstream `maddsV2` text,
 > unchanged, so some of it (build requirements, supported macOS versions)
@@ -31,7 +31,7 @@ and Xcode 27.0.
 
 ### Install first
 
-- **macOS 13 or later**, and **Xcode 26 or later**.
+- **macOS 12 or later** to run it; building needs **Xcode 26 or later**.
 - **Xcode's Metal toolchain.** Since Xcode 26 it is a separate download
   (about 700 MB), and every Xcode update removes it again:
   `xcodebuild -downloadComponent MetalToolchain`
@@ -82,7 +82,7 @@ compiles:
 ```bash
 xcodebuild -workspace Boxer.xcworkspace -scheme "Boxer CI" \
   -configuration Release -arch arm64 \
-  MACOSX_DEPLOYMENT_TARGET=13.0 \
+  MACOSX_DEPLOYMENT_TARGET=12.0 \
   CODE_SIGN_IDENTITY="-" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO \
   build
 ```
