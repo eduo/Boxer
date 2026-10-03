@@ -5545,7 +5545,7 @@
 					"$(SRCROOT)/Vendor/speexdsp",
 					"$(SRCROOT)/Vendor/speexdsp/include",
 					"$(SRCROOT)/Vendor/speexdsp/libspeexdsp",
-					/opt/homebrew/opt/asio/include,
+					"$(SRCROOT)/Vendor/asio/asio/include",
 				);
 				INFOPLIST_FILE = "Standalone/Boxer Standalone-Info.plist";
 				LD_NO_PIE = YES;
@@ -5604,7 +5604,7 @@
 					"$(SRCROOT)/Vendor/speexdsp",
 					"$(SRCROOT)/Vendor/speexdsp/include",
 					"$(SRCROOT)/Vendor/speexdsp/libspeexdsp",
-					/opt/homebrew/opt/asio/include,
+					"$(SRCROOT)/Vendor/asio/asio/include",
 				);
 				INFOPLIST_FILE = "Standalone/Boxer Standalone-Info.plist";
 				LD_NO_PIE = YES;
@@ -5804,7 +5804,7 @@
 					"$(SRCROOT)/Vendor/speexdsp",
 					"$(SRCROOT)/Vendor/speexdsp/include",
 					"$(SRCROOT)/Vendor/speexdsp/libspeexdsp",
-					/opt/homebrew/opt/asio/include,
+					"$(SRCROOT)/Vendor/asio/asio/include",
 				);
 				INFOPLIST_FILE = Info.plist;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.entertainment";
@@ -5870,7 +5870,7 @@
 					"$(SRCROOT)/Vendor/speexdsp",
 					"$(SRCROOT)/Vendor/speexdsp/include",
 					"$(SRCROOT)/Vendor/speexdsp/libspeexdsp",
-					/opt/homebrew/opt/asio/include,
+					"$(SRCROOT)/Vendor/asio/asio/include",
 				);
 				INFOPLIST_FILE = Info.plist;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.entertainment";

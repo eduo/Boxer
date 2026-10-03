@@ -35,10 +35,10 @@ and Xcode 27.0.
 - **Xcode's Metal toolchain.** Since Xcode 26 it is a separate download
   (about 700 MB), and every Xcode update removes it again:
   `xcodebuild -downloadComponent MetalToolchain`
-- **[Homebrew](https://brew.sh)**, installed at `/opt/homebrew` (the Apple
-  Silicon default). The project looks for asio's headers at that exact path.
-- **asio** (headers only, not linked into the app) and **CMake** (builds
-  OpenEmuShaders' SPIR-V and glslang tools): `brew install asio cmake`
+- **CMake**, which builds OpenEmuShaders' SPIR-V and glslang tools, for
+  example from [Homebrew](https://brew.sh): `brew install cmake`. asio, the
+  one other library DOSBox needs at build time, is a submodule
+  (`Vendor/asio`), so nothing has to be installed for it.
 - *Optional:* **SwiftLint**. The build only prints a warning without it.
 
 The finished app is self-contained; it needs nothing from Homebrew at run

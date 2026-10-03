@@ -10,3 +10,7 @@
 [submodule "DOSBox-Staging"]
 	path = DOSBox-Staging
 	url = https://github.com/eduo/dosbox-staging.git
+[submodule "Vendor/asio"]
+	path = Vendor/asio
+	url = https://github.com/chriskohlhoff/asio.git
+	shallow = true
